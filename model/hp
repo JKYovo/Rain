@@ -1,0 +1,6 @@
+hidden
+num_heads
+kv_heads
+vocab_size
+FFN(SwiGLU)
+layer
