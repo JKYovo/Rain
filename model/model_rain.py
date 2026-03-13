@@ -368,3 +368,82 @@ class RainModel(nn.Module):
         # 最终 LayerNorm
         hidden_states = self.norm(hidden_states)
         return hidden_states, presents
+
+
+# 因果语言模型
+class RainForCausalLM(PreTrainedModel, GenerationMixin):
+    """
+    Rain 因果语言模型（用于文本生成）
+    在 RainModel 基础上添加 Language Modeling Head
+    """
+    config_class = RainConfig
+
+    def __init__(self, config: RainConfig = None):
+        self.config = config or RainConfig()
+        super().__init__(self.config)
+        
+        # Transformer 主体
+        self.model = RainModel(self.config)
+        
+        # Language Modeling Head（与 embed_tokens 权重共享）
+        self.lm_head = nn.Linear(self.config.hidden_size, self.config.vocab_size, bias=False)
+        self.model.embed_tokens.weight = self.lm_head.weight  # 权重绑定，节约参数空间
+
+    def forward(self,
+                input_ids: Optional[torch.Tensor] = None,
+                attention_mask: Optional[torch.Tensor] = None,
+                labels: Optional[torch.Tensor] = None,
+                past_key_values: Optional[List[Tuple[torch.Tensor, torch.Tensor]]] = None,
+                use_cache: bool = False,
+                logits_to_keep: Union[int, torch.Tensor] = 0,
+                **args):
+        """
+        前向传播（用于训练和推理）
+        
+        Args:
+            input_ids: 输入 token IDs (batch, seq_len)
+            attention_mask: 注意力掩码 (batch, seq_len)
+            labels: 标签 (batch, seq_len)，用于计算 loss
+            past_key_values: KV cache
+            use_cache: 是否返回 KV cache
+            logits_to_keep: 保留最后多少个 token 的 logits（节省内存）
+        
+        Returns:
+            CausalLMOutputWithPast: 包含 loss, logits, past_key_values, hidden_states
+        """
+        # Transformer 前向传播
+        hidden_states, past_key_values = self.model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            past_key_values=past_key_values,
+            use_cache=use_cache,
+            **args
+        )
+        
+        # 计算 logits（可选择只保留最后几个 token）
+        slice_indices = slice(-logits_to_keep, None) if isinstance(logits_to_keep, int) else logits_to_keep
+        logits = self.lm_head(hidden_states[:, slice_indices, :])
+
+        # 计算交叉熵损失（如果提供了 labels）
+        loss = None
+        if labels is not None:
+            # 标准的自回归语言模型 loss 计算：
+            # 预测 token[i+1]，使用 token[0:i] 的信息
+            # shift_logits: [0, 1, ..., n-2] 位置的预测
+            # shift_labels: [1, 2, ..., n-1] 位置的真实标签
+            # 把输入左移就成了label，预测下一个token
+            shift_logits = logits[..., :-1, :].contiguous()
+            shift_labels = labels[..., 1:].contiguous()
+            loss = F.cross_entropy(
+                shift_logits.view(-1, shift_logits.size(-1)), 
+                shift_labels.view(-1), 
+                ignore_index=-100  # 忽略 padding 和 mask 的位置
+            )
+
+        output = CausalLMOutputWithPast(
+            loss=loss, 
+            logits=logits, 
+            past_key_values=past_key_values, 
+            hidden_states=hidden_states
+        )
+        return output
