@@ -191,7 +191,7 @@ if __name__ == "__main__":
     if dist.is_initialized(): args.device = f"cuda:{local_rank}"  # DDP 时每进程用不同 GPU
 
     # ========== 2. 配置目录、模型参数、检查ckp ==========
-    lm_config = SpongeBobConfig(hidden_size=args.hidden_size, num_hidden_layers=args.num_hidden_layers)
+    lm_config = RainConfig(hidden_size=args.hidden_size, num_hidden_layers=args.num_hidden_layers)
     
     # 生成 run_name（用于后续创建子目录）
     run_name = f"h{args.hidden_size}_l{args.num_hidden_layers}_bs{args.batch_size}_lr{args.learning_rate}"
@@ -235,10 +235,10 @@ if __name__ == "__main__":
     # 创建模型
     if args.from_weight != 'none' and os.path.exists(args.from_weight):
         Logger(f'Loading model from {args.from_weight}')
-        model = SpongeBobForCausalLM.from_pretrained(args.from_weight)
+        model = RainForCausalLM.from_pretrained(args.from_weight)
     else:
         Logger(f'Creating new model: hidden_size={args.hidden_size}, num_layers={args.num_hidden_layers}')
-        model = SpongeBobForCausalLM(lm_config)
+        model = RainForCausalLM(lm_config)
     
     model = model.to(args.device)
     Logger(f'Model parameters: {sum(p.numel() for p in model.parameters())/1e6:.2f}M')
