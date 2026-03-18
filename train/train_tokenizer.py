@@ -14,7 +14,7 @@ os.environ['TOKENIZERS_PARALLELISM'] = 'true'
 
 # 配置
 DATA_PATH = ''
-TOKENIZER_DIR = 'E:/NLP_notes\Rain/tokenizer_15k'
+TOKENIZER_DIR = 'E:/NLP_notes/Rain/tokenizer_15k'
 VOCAB_SIZE = 15000
 
 # thinking模式本质也是一种范式的学习，即思维链学习到了think这种功能

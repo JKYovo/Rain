@@ -6,7 +6,8 @@ import json
 import torch
 import torch.nn.functional as F
 
-
+# 把每个选项分别拼接到题目后面，形成 context + choice，让模型算只看选项部分的平均 next-token prediction loss（即困惑度）。
+# loss 越低 = 模型越认为这个选项接得合理，选 loss 最小的那个就是预测答案。
 def eval_multiple_choice(model, tokenizer, context, choices, label_idx, max_length=512):
     """
     多选题评测：计算每个选项的困惑度，选择困惑度最低的
@@ -24,6 +25,13 @@ def eval_multiple_choice(model, tokenizer, context, choices, label_idx, max_leng
     """
     losses = []
     
+    """
+        假设有 4 个选项：
+        拼接 4 次
+        tokenize + forward 4 次
+        计算 loss 4 次
+        最后比较这 4 个 loss，谁最小就选谁
+    """
     for choice in choices:
         # 拼接 context + choice
         full_text = context + choice

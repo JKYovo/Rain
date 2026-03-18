@@ -13,7 +13,7 @@ class RMSNorm(torch.nn.Module):
         super().__init__()
         self.eps = eps
         self.weight = nn.Parameter(torch.ones(dim)) # γ 是一个形状为 [dim] 的可学习向量（每个维度一个独立的缩放系数）
-    def __norm(self, x):
+    def _norm(self, x):
         return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps) # 对输入张量 x 计算均方根，并应用平滑项防止除零
     def forward(self, x):
         return self.weight * self._norm(x.float()).type_as(x)

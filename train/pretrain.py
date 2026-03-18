@@ -3,6 +3,11 @@ Rain 预训练脚本（支持多卡 DDP）
 与 pretrain_without_ddp.py 的差异已用 [DDP] 标出：主要为分布式初始化、Sampler、DDP 包模型、
 主进程判断（保存/评测）、总步数按 world_size 分片、训练循环用 train_sampler、结束时 destroy_process_group。
 """
+# 分布式训练并行策略对比（DP / PP / TP）
+# 
+# 并行的是什么          数据（batch）                          模型的不同层                           模型单层内的计算（主要是矩阵乘法）
+# 每个GPU存什么          完整模型 + mini-batch 数据            只存模型的一部分层                     完整层数，但每层权重/激活被切分
+# 显存节省               × 不节省（优化器状态更多更占）          ◎ 明显节省（参数分片）                 ◎ 明显节省（单层参数分片）
 import os
 import sys
 
@@ -25,7 +30,7 @@ from model.config import RainConfig
 from model.model_rain import RainForCausalLM
 from dataset.pretrain_dataset import PretrainDataset
 from utils import get_lr, Logger, is_main_process, init_distributed_mode, SkipBatchSampler  # [DDP] is_main_process/init_distributed_mode 仅 DDP 用；without_ddp 无
-from benchmark.pretrain.evaluator import run_benchmark
+from benchmark.evaluator import run_benchmark
 
 _BENCH_PRETRAIN_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "benchmark", "pretrain")
 
@@ -159,7 +164,7 @@ def train_epoch(epoch, loader, iters, start_step=0, swanlab=None, total_steps=No
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="SpongeBob Pretraining")
+    parser = argparse.ArgumentParser(description="Rain Pretraining")
     parser.add_argument("--save_dir", type=str, default="../pretrain_out/exp_mini", help="模型保存根目录")
     parser.add_argument('--save_weight', default='pretrain', type=str, help="保存权重的前缀名")
     parser.add_argument("--epochs", type=int, default=2, help="训练轮数")
@@ -179,7 +184,7 @@ if __name__ == "__main__":
     parser.add_argument('--from_weight', default='none', type=str, help="基于哪个权重训练，为none则从头开始")
     parser.add_argument('--from_resume', default=0, type=int, choices=[0, 1], help="是否自动检测&续训（0=否，1=是）")
     parser.add_argument("--use_swanlab", type=int, default=1, choices=[0, 1], help="是否使用swanlab（0=否，1=是）")
-    parser.add_argument("--swanlab_project", type=str, default="SpongeBob-Pretrain", help="swanlab项目名")
+    parser.add_argument("--swanlab_project", type=str, default="Rain-Pretrain", help="swanlab项目名")
     parser.add_argument("--use_compile", default=1, type=int, choices=[0, 1], help="是否使用torch.compile加速（0=否，1=是）")
     parser.add_argument("--eval_bench", default=1, type=int, choices=[0, 1], help="是否评测benchmark（0=否，1=是）")
     parser.add_argument("--eval_interval", type=int, default=1000, help="评测间隔步数")
@@ -218,7 +223,7 @@ if __name__ == "__main__":
     swanlab_run = None
     if args.use_swanlab and is_main_process():  # [DDP] 仅主进程上报；without_ddp 无 is_main_process()
         import swanlab
-        swanlab.login(api_key="4jqfbuJs9zDRcLAMPoDQv")
+        swanlab.login(api_key="mT57NInXlfLAFpR1rsWDg")
         
         swanlab_id = ckp_data.get('swanlab_id') if ckp_data else None
         
