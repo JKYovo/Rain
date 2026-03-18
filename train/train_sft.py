@@ -6,7 +6,7 @@ SFT 训练脚本：由 pretrain.py 复制后做少量修改得到，便于与预
 1. 数据集：PretrainDataset(.bin) → SFTDataset(jsonl 对话数据，只算 assistant loss)
 2. Tokenizer：SFT 需提前加载（Dataset 需要），pretrain 仅评测时加载
 3. 模型加载：pretrain 用 from_pretrained，SFT 用 load_state_dict 加载 .pth
-4. 评测方式：pretrain 用 C3/XCOPA benchmark，SFT 用 mini_bench + DeepSeek Judge 生成式评测
+4. 评测方式：pretrain 用 C3/XCOPA benchmark，SFT 用 mini_bench + DeepSeek Judge 生成式评测(LLM As Judge)
 5. 新增参数：tokenizer_path, judge_api_key, judge_model
 """
 import os
@@ -98,8 +98,7 @@ def train_epoch(epoch, loader, iters, start_step=0, swanlab=None, total_steps=No
 
         # [SFT] mini_bench 评测：每到 eval_interval 用当前模型推理，异步 DeepSeek Judge
         # pretrain 用 run_benchmark (C3/XCOPA)，SFT 用 run_inference + run_judge_async (生成式评测)
-        # Bo3：像“三个方案都脑暴一遍，然后挑最好的那个提交”（考试时多写几遍草稿，选最优交上去）。
-        # Avg3：像“做三遍实验，取平均分/成功率”（更看重稳定性，而不是单次巅峰）。
+
         if args.enable_eval and getattr(args, "eval_interval", 0) > 0 and global_step % args.eval_interval == 0 and is_main_process():
             from benchmark.mini_benchmark.eval import run_inference, run_judge_async
             raw = model.module if isinstance(model, DistributedDataParallel) else model
@@ -138,17 +137,17 @@ if __name__ == "__main__":
     parser.add_argument('--hidden_size', default=768, type=int, help="隐藏层维度")
     parser.add_argument('--num_hidden_layers', default=12, type=int, help="隐藏层数量")
     parser.add_argument('--max_seq_len', default=512, type=int, help="序列长度")
-    parser.add_argument("--data_path", type=str, default="", help="SFT 数据 jsonl 路径")
-    parser.add_argument("--tokenizer_path", type=str, default="../tokenizer_15k", help="tokenizer 路径")  # [SFT] 新增：SFTDataset 需要 tokenizer
-    parser.add_argument('--from_weight', default='', type=str, help="基于哪个权重训练，为 none 则从头开始")
+    parser.add_argument("--data_path", type=str, default="/root/autodl-tmp/Rain/spongebob_sft.jsonl", help="SFT 数据 jsonl 路径")
+    parser.add_argument("--tokenizer_path", type=str, default="/root/autodl-tmp/Rain/tokenizer_15k", help="tokenizer 路径")  # [SFT] 新增：SFTDataset 需要 tokenizer
+    parser.add_argument('--from_weight', default='/root/autodl-tmp/Rain/pretrain_768.pth', type=str, help="基于哪个权重训练，为 none 则从头开始")
     parser.add_argument('--from_resume', default=0, type=int, choices=[0, 1], help="是否自动检测&续训（0=否，1=是）")
     parser.add_argument("--use_swanlab", type=int, default=1, choices=[0, 1], help="是否使用 swanlab（0=否，1=是）")
     parser.add_argument("--swanlab_project", type=str, default="Rain-SFT", help="swanlab 项目名")
     parser.add_argument("--use_compile", default=1, type=int, choices=[0, 1], help="是否使用 torch.compile 加速（0=否，1=是）")
     # [SFT] 新增：mini_bench 评测参数（使用 DeepSeek API）
-    parser.add_argument("--enable_eval", type=int, default=0, choices=[0, 1], help="是否启用评估（0=关闭，1=开启）")
+    parser.add_argument("--enable_eval", type=int, default=1, choices=[0, 1], help="是否启用评估（0=关闭，1=开启）")
     parser.add_argument("--eval_interval", type=int, default=1000, help="每隔多少 step 跑 mini_bench（0=关闭），用当前模型推理+DeepSeek Judge 打分")
-    parser.add_argument("--judge_api_key", type=str, default='', help="Judge API Key（可直接传入或从环境变量 DEEPSEEK_API_KEY 读取）")
+    parser.add_argument("--judge_api_key", type=str, default='sk-9c86e62bb40a4e55a22f0ce5ef8c750b', help="Judge API Key（可直接传入或从环境变量 DEEPSEEK_API_KEY 读取）")
     parser.add_argument("--judge_model", type=str, default="deepseek-chat", help="Judge 模型名")
     args = parser.parse_args()
 
@@ -184,7 +183,7 @@ if __name__ == "__main__":
     swanlab_run = None
     if args.use_swanlab and is_main_process():
         import swanlab
-        swanlab.login(api_key="4jqfbuJs9zDRcLAMPoDQv")
+        swanlab.login(api_key="mT57NInXlfLAFpR1rsWDg")
 
         swanlab_id = ckp_data.get('swanlab_id') if ckp_data else None
         swanlab_run = swanlab.init(

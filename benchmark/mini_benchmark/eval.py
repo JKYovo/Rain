@@ -49,7 +49,12 @@ def run_inference(model, tokenizer, device=None, num_samples=3, max_prompts=None
     # 保存原始 padding 方向，生成时使用左 padding
     original_padding_side = tokenizer.padding_side
     tokenizer.padding_side = "left"
-    
+    """
+    所有真实 token 都集中在序列的右端,[PAD] [PAD] [PAD] Hello, how are you?
+    模型的最后一个位置就是 ?（最右边的真实 token）
+    当模型开始生成时，它直接从最后一个真实 token 开始向右扩展
+    attention mask 会把左边的 padding 完全 mask 掉（-inf），模型根本看不到它们
+    """
     # 确保 tokenizer 有 pad_token（左 padding 必需）
     # 重要：pad_token 不能等于 eos_token，否则模型会立即停止生成
     if tokenizer.pad_token is None:
@@ -83,7 +88,7 @@ def run_inference(model, tokenizer, device=None, num_samples=3, max_prompts=None
                 num_return_sequences=num_samples,
                 pad_token_id=tokenizer.pad_token_id,
                 eos_token_id=tokenizer.eos_token_id,  # 明确指定 eos_token_id
-                repetition_penalty=1.2
+                repetition_penalty=1.2 # 重复惩罚（为所欲为）
             )
         
         for i, p in enumerate(batch_prompts):
@@ -187,6 +192,9 @@ def run_judge(pairs, api_key=None, model="deepseek-chat", return_details=False, 
                 "pass_any": passed_any
             })
     
+    # Bo3：像“三个方案都脑暴一遍，然后挑最好的那个提交”（考试时多写几遍草稿，选最优交上去）。
+    # Avg3：像“做三遍实验，取平均分/成功率”（更看重稳定性，而不是单次巅峰）。
+
     metrics = {}
     for d in DIMENSIONS:
         scores = dim_data[d]["scores"]

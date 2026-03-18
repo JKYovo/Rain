@@ -32,4 +32,8 @@ pretrain_out/
 wandb/
 runs/
 logs/
-
+nohup.out
+spongebob_sft.jsonl
+thinking_distill.jsonl
+.msc
+.mv
