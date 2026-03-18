@@ -1,0 +1,35 @@
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+
+# Environments
+.venv/
+venv/
+env/
+myrainenv/
+
+# IDE
+.vscode/
+.idea/
+
+# Training outputs / artifacts
+pretrain_out/
+*.pth
+*.pt
+*.ckpt
+*.bin
+*.safetensors
+wandb/
+runs/
+logs/
+
