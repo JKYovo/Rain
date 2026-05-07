@@ -1,96 +1,89 @@
-# Rain: End-to-End 0.1B Chinese LLM Training
+# Rain: 0.1B 中文大语言模型训练框架
 
-Rain 是一个从零实现的 0.1B 级中文 Decoder-only LLM 项目，覆盖 Tokenizer、Pretraining、SFT、GRPO、Evaluation 和 Inference 的完整训练链路。项目重点不是封装黑盒训练框架，而是用尽量清晰的 PyTorch 代码展示一个小型中文语言模型从数据处理到强化对齐的完整实验过程。
+Rain 是一个面向中文场景的小参数量 Decoder-only 语言模型项目，覆盖从 Byte-level BPE Tokenizer、预训练、监督微调到 GRPO 强化对齐的完整实验链路。项目目标不是封装黑盒训练接口，而是用尽量清晰的 PyTorch 代码展示一个小型中文 LLM 从数据处理到推理评测的端到端实现。
 
-This project is designed for learning, research, and small-scale experimentation with Chinese language model training.
+## 项目概览
 
-## Highlights
+- 自研 15K 词表 Byte-level BPE Tokenizer，内置中文对话与 `<think>` 推理格式特殊 token。
+- 从零实现 Rain Decoder-only Transformer，支持 RMSNorm、RoPE、SwiGLU、Grouped Query Attention、KV Cache 与 PyTorch SDPA/Flash Attention 路径。
+- 预训练支持二进制 `.bin/.meta` 数据读取、混合精度、梯度累积、Warmup + Cosine 学习率、DDP 多卡训练、断点续训与 SwanLab 记录。
+- SFT 支持多轮对话 JSONL 数据，只对 assistant 回复部分计算 loss，并提供 mini benchmark + LLM Judge 评测流程。
+- GRPO 支持 prompt-only 数据集、组内相对优势估计、reference model KL 约束、格式奖励与 DeepSeek Judge 混合奖励。
 
-- **End-to-end pipeline**：Tokenizer → Pretraining → SFT → GRPO → Evaluation → Inference。
-- **Custom Tokenizer**：基于 Byte-level BPE 训练 15K 词表，支持中文文本、chat template 和 `<think>` reasoning format。
-- **Decoder-only Transformer**：实现 RMSNorm、RoPE、SwiGLU、Grouped Query Attention、KV Cache 和 embedding/LM head weight tying。
-- **Training engineering**：支持 mixed precision、gradient accumulation、gradient clipping、warmup + cosine learning rate schedule、DDP、torch.compile 和 checkpoint resume。
-- **Data pipeline**：支持 pretrain JSONL 转 `.bin/.meta`，SFT multi-turn conversation JSONL，以及 GRPO prompt-only JSONL。
-- **GRPO alignment**：实现 Group Relative Policy Optimization，结合 reference model KL penalty、format reward 和 DeepSeek Judge reward。
-- **Evaluation loop**：支持 C3/XCOPA multiple-choice benchmark，以及 mini benchmark + LLM-as-Judge 生成式评测。
+## 实验结果
 
-## Results
+以下为当前实验记录中的代表性结果，具体数值会随数据、训练步数和模型配置变化：
 
-| Stage | Metric | Result |
+| 阶段 | 指标 | 结果 |
 | --- | --- | --- |
 | Pretraining | validation loss | `~8.0 -> 2.28` |
-| Benchmark | C3 / XCOPA accuracy | `0.40 / 0.55` |
-| GRPO | reasoning QA F1 | `0.45 -> 0.60` |
+| Benchmark | C3 / XCOPA | `0.40 / 0.55` |
+| GRPO | 推理 F1 score | `0.45 -> 0.60` |
 
-以上结果来自当前实验记录，实际效果会随数据规模、训练步数、模型配置、采样参数和评测方式变化。
+## 模型架构
 
-## Model Architecture
-
-模型配置见 `model/config.py`，核心实现见 `model/model_rain.py`。
+当前代码默认配置见 `model/config.py`：
 
 ```text
-Input IDs
-  ↓
-Token Embedding
-  ↓
-12 x Transformer Blocks
-  ├── RMSNorm
-  ├── Grouped Query Attention
-  │   ├── RoPE
-  │   ├── SDPA / Flash Attention path
-  │   └── KV Cache
-  ├── Residual
-  ├── RMSNorm
-  ├── SwiGLU FFN
-  └── Residual
-  ↓
-Final RMSNorm
-  ↓
-LM Head
+RainForCausalLM
+├── Token Embedding / LM Head weight tying
+├── 12 x RainBlock
+│   ├── RMSNorm
+│   ├── Grouped Query Attention
+│   │   ├── num_attention_heads = 12
+│   │   ├── num_key_value_heads = 4
+│   │   ├── RoPE
+│   │   ├── SDPA / Flash Attention
+│   │   └── KV Cache
+│   ├── Residual
+│   ├── RMSNorm
+│   ├── SwiGLU FFN
+│   └── Residual
+└── Final RMSNorm
 ```
 
-默认配置：
+默认核心参数：
 
-| Parameter | Default | Description |
-| --- | --- | --- |
-| `vocab_size` | `15000` | 词表大小 |
-| `hidden_size` | `768` | hidden dimension |
-| `num_hidden_layers` | `12` | Transformer layers |
-| `num_attention_heads` | `12` | query heads |
-| `num_key_value_heads` | `4` | key/value heads |
-| `intermediate_size` | `2048` | FFN hidden size |
-| `max_position_embeddings` | `32768` | max position length |
+| 参数 | 默认值 |
+| --- | --- |
+| `vocab_size` | `15000` |
+| `hidden_size` | `768` |
+| `num_hidden_layers` | `12` |
+| `num_attention_heads` | `12` |
+| `num_key_value_heads` | `4` |
+| `intermediate_size` | `2048` |
+| `max_position_embeddings` | `32768` |
 
-## Repository Structure
+## 目录结构
 
 ```text
 .
 ├── model/
 │   ├── config.py              # RainConfig
-│   └── model_rain.py          # Rain model and CausalLM wrapper
+│   └── model_rain.py          # Rain 模型主体与 CausalLM 封装
 ├── train/
-│   ├── train_tokenizer.py     # Tokenizer training and validation
-│   ├── pretrain.py            # Pretraining script with DDP support
-│   ├── train_sft.py           # SFT training script
-│   ├── train_grpo.py          # GRPO training script
-│   └── utils.py               # training utilities
+│   ├── train_tokenizer.py     # BPE tokenizer 训练/验证
+│   ├── pretrain.py            # 预训练入口，支持 DDP
+│   ├── train_sft.py           # SFT 训练入口
+│   ├── train_grpo.py          # GRPO 强化对齐入口
+│   └── utils.py               # 分布式、日志、学习率等工具
 ├── dataset/
-│   ├── preprocess_data.py     # pretrain JSONL -> bin/meta
-│   ├── pretrain_dataset.py    # pretraining dataset
-│   ├── sft_dataset.py         # SFT dataset
-│   └── grpo_dataset.py        # GRPO dataset
+│   ├── preprocess_data.py     # 预训练 JSONL -> bin/meta
+│   ├── pretrain_dataset.py    # 预训练数据集
+│   ├── sft_dataset.py         # SFT 对话数据集
+│   └── grpo_dataset.py        # GRPO prompt 数据集
 ├── benchmark/
-│   ├── evaluator.py           # C3 / XCOPA evaluation
-│   └── mini_benchmark/        # mini benchmark + Judge
-├── tokenizer_15k/             # trained 15K tokenizer
-├── GRPO_train.jsonl           # sample GRPO prompts
-├── eval.py                    # interactive inference
+│   ├── evaluator.py           # C3 / XCOPA 多选评测
+│   └── mini_benchmark/        # 生成式 mini benchmark + Judge
+├── tokenizer_15k/             # 已训练 tokenizer
+├── GRPO_train.jsonl           # GRPO 示例训练数据
+├── eval.py                    # 交互式推理脚本
 └── requirements.txt
 ```
 
-## Installation
+## 环境安装
 
-建议使用 Python 3.10+。GPU 训练时请根据本机 CUDA 版本安装合适的 PyTorch。
+建议使用 Python 3.10+ 与 PyTorch 2.0+。GPU 训练推荐使用支持 bfloat16 的 NVIDIA 显卡。
 
 ```bash
 python -m venv .venv
@@ -98,23 +91,23 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-如果启用 DeepSeek Judge，请配置自己的 API key：
+如需使用 SwanLab 或 DeepSeek Judge，请使用自己的账号和 API Key。生产环境中不建议把密钥写入代码，推荐通过环境变量或命令行参数传入。
 
 ```bash
 export DEEPSEEK_API_KEY="your_api_key"
 ```
 
-## Data Format
+## 数据格式
 
-### Pretraining Data
+### 预训练数据
 
-原始 pretraining 数据为 JSONL，每行包含 `text` 字段：
+输入 JSONL 每行包含一个 `text` 字段：
 
 ```json
 {"text": "这里是一段用于语言模型预训练的中文文本。"}
 ```
 
-预处理为二进制训练数据：
+预处理为训练用二进制数据：
 
 ```bash
 python dataset/preprocess_data.py \
@@ -125,40 +118,40 @@ python dataset/preprocess_data.py \
   --num_workers 16
 ```
 
-输出文件：
+该命令会生成：
 
 - `data/pretrain_512.bin`
 - `data/pretrain_512.meta`
 
-### SFT Data
+### SFT 数据
 
-SFT 数据为 multi-turn conversation JSONL。训练时只计算 assistant response 部分的 loss。
+SFT 数据为多轮对话 JSONL，`SFTDataset` 只对 assistant 部分计算 loss：
 
 ```json
 {"conversations":[{"role":"user","content":"你好"},{"role":"assistant","content":"你好，我是 Rain。"}]}
 ```
 
-### GRPO Data
+### GRPO 数据
 
-GRPO 数据只需要 prompt。仓库中的 `GRPO_train.jsonl` 提供了示例数据。
+GRPO 数据只需要 prompt，仓库中的 `GRPO_train.jsonl` 已提供 200 条示例：
 
 ```json
 {"id": 153, "category": "指令与逻辑", "prompt": "计算5减2等于几。"}
 ```
 
-## Training
+## 训练流程
 
-### Tokenizer
+### 1. Tokenizer
 
-仓库已包含 `tokenizer_15k/`，可以直接用于训练和推理。如果需要重新训练 tokenizer，请先在 `train/train_tokenizer.py` 中配置 `DATA_PATH` 和 `TOKENIZER_DIR`，并打开脚本末尾的 `train_tokenizer(...)` 调用。
+仓库已包含 `tokenizer_15k/`，可以直接用于训练和推理。如需重新训练 tokenizer，请在 `train/train_tokenizer.py` 中配置 `DATA_PATH` 与 `TOKENIZER_DIR`，并打开脚本末尾的 `train_tokenizer(...)` 调用后运行：
 
 ```bash
 python train/train_tokenizer.py
 ```
 
-### Pretraining
+### 2. 预训练
 
-单卡示例：
+单卡训练示例：
 
 ```bash
 python train/pretrain.py \
@@ -172,7 +165,7 @@ python train/pretrain.py \
   --eval_bench 0
 ```
 
-DDP 多卡示例：
+多卡 DDP 示例：
 
 ```bash
 torchrun --nproc_per_node=2 train/pretrain.py \
@@ -184,7 +177,7 @@ torchrun --nproc_per_node=2 train/pretrain.py \
   --eval_bench 0
 ```
 
-Resume checkpoint：
+断点续训：
 
 ```bash
 python train/pretrain.py \
@@ -195,7 +188,7 @@ python train/pretrain.py \
   --eval_bench 0
 ```
 
-### SFT
+### 3. SFT
 
 ```bash
 python train/train_sft.py \
@@ -209,7 +202,7 @@ python train/train_sft.py \
   --enable_eval 0
 ```
 
-启用 mini benchmark + DeepSeek Judge：
+如需启用 mini benchmark + DeepSeek Judge：
 
 ```bash
 python train/train_sft.py \
@@ -222,7 +215,7 @@ python train/train_sft.py \
   --use_swanlab 0
 ```
 
-### GRPO
+### 4. GRPO
 
 ```bash
 python train/train_grpo.py \
@@ -237,11 +230,15 @@ python train/train_grpo.py \
   --use_swanlab 0
 ```
 
-GRPO 训练会保存 rollout logs，便于分析每条回答的 format check、Judge score 和 final reward。
+GRPO 会在训练中保存：
 
-## Inference
+- `global_step_x/grpo_768.pth`：模型权重
+- `global_step_x/resume.pth`：断点续训状态
+- `data_log/global_step_x.jsonl`：每步 rollout、reward、格式检查与 Judge 结果
 
-单轮对话：
+## 推理
+
+交互式对话：
 
 ```bash
 python eval.py \
@@ -264,16 +261,15 @@ python eval.py \
   --multi_turn
 ```
 
-## Evaluation
+## 评测
 
-- `benchmark/evaluator.py`：C3 / XCOPA multiple-choice evaluation，通过比较选项 perplexity 选择答案。
-- `benchmark/mini_benchmark/eval.py`：生成式 mini benchmark，使用 DeepSeek Judge 评估 fluency、factuality 和 instruction following。
-- `train/train_sft.py`：支持训练过程中定期运行 generation evaluation。
-- `train/train_grpo.py`：记录 rollout、reward、format check 和 Judge score。
+- `benchmark/evaluator.py`：基于 C3 / XCOPA 的多选困惑度评测。
+- `benchmark/mini_benchmark/eval.py`：对生成结果进行多采样，并通过 DeepSeek Judge 计算 `fluency`、`factuality`、`instruction_following`。
+- SFT 与 GRPO 训练脚本中已集成在线评测/rollout 记录，可通过 `--enable_eval`、`--eval_interval`、`--judge_api_key` 等参数控制。
 
-## Checkpoints
+## Checkpoint 说明
 
-训练输出目录会按实验配置自动组织：
+训练输出目录按实验配置自动组织：
 
 ```text
 out/{stage}/h768_l12_bs128_lr0.001/
@@ -285,13 +281,16 @@ out/{stage}/h768_l12_bs128_lr0.001/
     └── resume.pth
 ```
 
-- `.pth`：模型权重文件，可用于 inference 或下一阶段训练初始化。
-- `resume.pth`：完整训练状态，包含 model、optimizer、scaler、epoch、step、global_step 等信息，用于断点续训。
+- `.pth`：轻量权重文件，适合推理或作为下一阶段初始化。
+- `resume.pth`：包含模型、优化器、scaler、epoch、step、global_step 等训练状态，适合断点续训。
 
-## Notes
+## 注意事项
 
-- 训练脚本中部分默认路径来自个人实验环境，实际运行时建议通过命令行参数覆盖。
-- 快速验证 pretraining 流程时，建议设置 `--eval_bench 0`，避免因评测路径或 tokenizer 路径不完整导致中断。
-- GRPO 和 mini benchmark 会调用外部 Judge API，请确认网络、额度和密钥配置。
-- 加载已有权重时，模型维度、层数和 tokenizer 必须与训练时保持一致。
-- 当前仓库尚未声明开源许可证，如需公开发布或商业使用，建议补充 `LICENSE` 文件。
+- 训练脚本中部分默认路径来自个人实验环境，实际使用时请通过命令行参数覆盖。
+- `pretrain.py` 默认 benchmark 评测依赖 tokenizer 路径配置，快速训练时建议先设置 `--eval_bench 0`。
+- `GRPO` 和 `mini_benchmark` 会调用外部 Judge API，请确认网络、额度和密钥配置。
+- 如果修改 `hidden_size`、`num_hidden_layers` 等架构参数，加载旧权重时需要保持配置一致。
+
+## License
+
+本项目目前未显式声明开源许可证。如需用于公开发布、商业使用或二次分发，请先补充许可证文件并确认数据来源合规。
