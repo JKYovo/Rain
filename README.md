@@ -20,9 +20,17 @@ Rain 是一个面向中文场景的小参数量 Decoder-only 语言模型项目�
 | Benchmark | C3 / XCOPA | `0.40 / 0.55` |
 | GRPO | 推理 F1 score | `0.45 -> 0.60` |
 
+<p align="center">
+  <img src="assets/images/pretraining_curves.png" alt="Rain 预训练曲线与 benchmark 指标" width="900">
+</p>
+
 ## 模型架构
 
 当前代码默认配置见 `model/config.py`：
+
+<p align="center">
+  <img src="assets/images/model_architecture.png" alt="Rain 模型架构图" width="520">
+</p>
 
 ```text
 RainForCausalLM
@@ -101,6 +109,10 @@ export DEEPSEEK_API_KEY="your_api_key"
 
 ### 预训练数据
 
+<p align="center">
+  <img src="assets/images/pretraining_data_distribution.png" alt="Rain 预训练数据分布" width="760">
+</p>
+
 输入 JSONL 每行包含一个 `text` 字段：
 
 ```json
@@ -140,6 +152,10 @@ GRPO 数据只需要 prompt，仓库中的 `GRPO_train.jsonl` 已提供 200 条�
 ```
 
 ## 训练流程
+
+<p align="center">
+  <img src="assets/images/training_pipeline.png" alt="Rain Pretraining 与 SFT 训练流程" width="760">
+</p>
 
 ### 1. Tokenizer
 
