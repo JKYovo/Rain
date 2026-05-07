@@ -143,11 +143,12 @@ if __name__ == "__main__":
     parser.add_argument('--from_resume', default=0, type=int, choices=[0, 1], help="是否自动检测&续训（0=否，1=是）")
     parser.add_argument("--use_swanlab", type=int, default=1, choices=[0, 1], help="是否使用 swanlab（0=否，1=是）")
     parser.add_argument("--swanlab_project", type=str, default="Rain-SFT", help="swanlab 项目名")
+    parser.add_argument("--swanlab_api_key", type=str, default="", help="SwanLab API Key（默认空，可用环境变量 SWANLAB_API_KEY）")
     parser.add_argument("--use_compile", default=1, type=int, choices=[0, 1], help="是否使用 torch.compile 加速（0=否，1=是）")
     # [SFT] 新增：mini_bench 评测参数（使用 DeepSeek API）
     parser.add_argument("--enable_eval", type=int, default=1, choices=[0, 1], help="是否启用评估（0=关闭，1=开启）")
     parser.add_argument("--eval_interval", type=int, default=1000, help="每隔多少 step 跑 mini_bench（0=关闭），用当前模型推理+DeepSeek Judge 打分")
-    parser.add_argument("--judge_api_key", type=str, default='sk-9c86e62bb40a4e55a22f0ce5ef8c750b', help="Judge API Key（可直接传入或从环境变量 DEEPSEEK_API_KEY 读取）")
+    parser.add_argument("--judge_api_key", type=str, default="", help="Judge API Key（默认空，可直接传入或从环境变量 DEEPSEEK_API_KEY 读取）")
     parser.add_argument("--judge_model", type=str, default="deepseek-chat", help="Judge 模型名")
     args = parser.parse_args()
 
@@ -183,7 +184,9 @@ if __name__ == "__main__":
     swanlab_run = None
     if args.use_swanlab and is_main_process():
         import swanlab
-        swanlab.login(api_key="mT57NInXlfLAFpR1rsWDg")
+        swanlab_api_key = args.swanlab_api_key or os.environ.get("SWANLAB_API_KEY", "")
+        if swanlab_api_key:
+            swanlab.login(api_key=swanlab_api_key)
 
         swanlab_id = ckp_data.get('swanlab_id') if ckp_data else None
         swanlab_run = swanlab.init(

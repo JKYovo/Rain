@@ -103,6 +103,7 @@ pip install -r requirements.txt
 
 ```bash
 export DEEPSEEK_API_KEY="your_api_key"
+export SWANLAB_API_KEY="your_api_key"
 ```
 
 ## 数据格式
@@ -299,6 +300,16 @@ out/{stage}/h768_l12_bs128_lr0.001/
 
 - `.pth`：轻量权重文件，适合推理或作为下一阶段初始化。
 - `resume.pth`：包含模型、优化器、scaler、epoch、step、global_step 等训练状态，适合断点续训。
+
+## TODO
+
+- 补充 `data/README.md`，说明预训练、SFT、GRPO 数据来源、规模、字段格式和预处理方式。
+- 提供可公开下载的示例数据或 tiny dataset，确保新用户 clone 后可以跑通最小训练流程。
+- 整理实际实验配置，补充 Pretraining / SFT / GRPO 的完整参数、训练步数、硬件环境和随机种子。
+- 清理训练脚本中的本地默认路径，将 `/root/autodl-tmp/...`、`E:/...` 等路径改为相对路径或命令行参数。
+- 将 SwanLab、DeepSeek 等 API Key 改为从环境变量读取，并提供 `.env.example`。
+- 补充 checkpoint 或模型权重下载说明，方便复现实验结果和推理样例。
+- 增加 `examples/` 或 `scripts/`，提供一键运行的 tiny pretrain、tiny SFT 和 tiny GRPO 示例命令。
 
 ## 注意事项
 

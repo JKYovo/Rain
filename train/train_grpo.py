@@ -74,6 +74,11 @@ def parse_judge_json(text):
 
 def call_judge(prompt, answer, api_key, model="deepseek-chat"):
     """调用 DeepSeek Judge API"""
+    api_key = api_key or os.environ.get("DEEPSEEK_API_KEY", "")
+    if not api_key:
+        print("  [judge] API Key 为空，跳过 Judge")
+        return None
+
     PROMPT = """请根据问题对以下回答进行评分（0-1 二值）：
 
 【问题】{question}
@@ -431,13 +436,14 @@ if __name__ == "__main__":
     # GRPO 参数
     parser.add_argument("--num_generations", type=int, default=4)
     parser.add_argument("--beta", type=float, default=0.05)
-    parser.add_argument("--judge_api_key", type=str, default='sk-9c86e62bb40a4e55a22f0ce5ef8c750b')
+    parser.add_argument("--judge_api_key", type=str, default="")
     parser.add_argument("--judge_model", type=str, default="deepseek-chat")
     
     # 控制
     parser.add_argument('--from_resume', default=0, type=int, choices=[0, 1])
     parser.add_argument("--use_swanlab", type=int, default=1, choices=[0, 1])
     parser.add_argument("--swanlab_project", type=str, default="Rain-GRPO")
+    parser.add_argument("--swanlab_api_key", type=str, default="")
     parser.add_argument("--use_compile", default=1, type=int, choices=[0, 1])
     
     args = parser.parse_args()
@@ -473,7 +479,9 @@ if __name__ == "__main__":
     swanlab_run = None
     if args.use_swanlab and is_main_process():
         import swanlab
-        swanlab.login(api_key="mT57NInXlfLAFpR1rsWDg")
+        swanlab_api_key = args.swanlab_api_key or os.environ.get("SWANLAB_API_KEY", "")
+        if swanlab_api_key:
+            swanlab.login(api_key=swanlab_api_key)
         swanlab_run = swanlab.init(project=args.swanlab_project, experiment_name=run_name,
                                    id=ckp_data.get('swanlab_id') if ckp_data else None, config=vars(args))
         Logger(f'SwanLab: {run_name}')

@@ -185,6 +185,7 @@ if __name__ == "__main__":
     parser.add_argument('--from_resume', default=0, type=int, choices=[0, 1], help="是否自动检测&续训（0=否，1=是）")
     parser.add_argument("--use_swanlab", type=int, default=1, choices=[0, 1], help="是否使用swanlab（0=否，1=是）")
     parser.add_argument("--swanlab_project", type=str, default="Rain-Pretrain", help="swanlab项目名")
+    parser.add_argument("--swanlab_api_key", type=str, default="", help="SwanLab API Key（默认空，可用环境变量 SWANLAB_API_KEY）")
     parser.add_argument("--use_compile", default=1, type=int, choices=[0, 1], help="是否使用torch.compile加速（0=否，1=是）")
     parser.add_argument("--eval_bench", default=1, type=int, choices=[0, 1], help="是否评测benchmark（0=否，1=是）")
     parser.add_argument("--eval_interval", type=int, default=1000, help="评测间隔步数")
@@ -223,7 +224,9 @@ if __name__ == "__main__":
     swanlab_run = None
     if args.use_swanlab and is_main_process():  # [DDP] 仅主进程上报；without_ddp 无 is_main_process()
         import swanlab
-        swanlab.login(api_key="mT57NInXlfLAFpR1rsWDg")
+        swanlab_api_key = args.swanlab_api_key or os.environ.get("SWANLAB_API_KEY", "")
+        if swanlab_api_key:
+            swanlab.login(api_key=swanlab_api_key)
         
         swanlab_id = ckp_data.get('swanlab_id') if ckp_data else None
         
@@ -334,9 +337,6 @@ if __name__ == "__main__":
             train_epoch(epoch, loader, len(loader) + skip, start_step, swanlab_run, total_steps, warmup_steps, full_save_dir)
         else:
             train_epoch(epoch, loader, len(loader), 0, swanlab_run, total_steps, warmup_steps, full_save_dir)
-    
     # ========== 10. [DDP] 清理分布式进程组 ==========
     # without_ddp 无此步骤，仅 Logger('Training done.')
     if dist.is_initialized(): dist.destroy_process_group()
-
-    
